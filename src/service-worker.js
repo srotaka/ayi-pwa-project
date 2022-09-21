@@ -8,10 +8,8 @@
 // service worker, and the Workbox build step will be skipped.
 
 import { clientsClaim } from 'workbox-core';
-import { ExpirationPlugin } from 'workbox-expiration';
 import { precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching';
-import { registerRoute } from 'workbox-routing';
-import { StaleWhileRevalidate } from 'workbox-strategies';
+
 
 clientsClaim();
 
@@ -21,52 +19,53 @@ clientsClaim();
 // even if you decide not to use precaching. See https://cra.link/PWA
 precacheAndRoute(self.__WB_MANIFEST);
 
-// Set up App Shell-style routing, so that all navigation requests
-// are fulfilled with your index.html shell. Learn more at
-// https://developers.google.com/web/fundamentals/architecture/app-shell
-const fileExtensionRegexp = new RegExp('/[^/?]+\\.[^/]+$');
-registerRoute(
-  // Return false to exempt requests from being fulfilled by index.html.
-  ({ request, url }) => {
-    // If this isn't a navigation, skip.
-    if (request.mode !== 'navigate') {
-      return false;
-    } // If this is a URL that starts with /_, skip.
+const CACHE_STATIC = "cache_static_v1";
+const CACHE_DYNAMIC = "cache_dynamic_v1";
+const CACHE_INMUTABLE = "cache_inmutable_v1";
 
-    if (url.pathname.startsWith('/_')) {
-      return false;
-    } // If this looks like a URL for a resource, because it contains // a file extension, skip.
+const APP_SHELL = ['/favicon.ico', 
+                  '/', 
+                  '/index.html', 
+                  '/logo192.png', 
+                  '/logo512.png', 
+                  '/favicon-16x16.png', 
+                  '/favicon-32x32.png', 
+                  '/favicon-96x96.png',
+                  '/src/assets/images/banner01.jpg',
+                  '/src/assets/images/banner02.png',
+                  '/src/assets/images/castle01.png',
+                  '/src/assets/images/castle02.png',
+                  '/src/assets/images/landing.jpg',
+                  '/src/assets/images/login.jpg',
+                  '/src/assets/images/logo01.png',
+                  '/src/assets/images/logo02.png',
+                  '/src/assets/images/logo03.jpg',
+                  '/src/assets/images/logo04.png'];
 
-    if (url.pathname.match(fileExtensionRegexp)) {
-      return false;
-    } // Return true to signal that we want to use the handler.
+const APP_SHELL_INMUTABLE = ['/src/assets/styles/style.css',
+                  'https://fonts.googleapis.com/css2?family=Lato&display=swap',
+                  '/src/assets/fonts/waltograph42.otf'];
 
-    return true;
-  },
-  createHandlerBoundToURL(process.env.PUBLIC_URL + '/index.html')
-);
-
-// An example runtime caching route for requests that aren't handled by the
-// precache, in this case same-origin .png requests like those from in public/
-registerRoute(
-  // Add in any other file extensions or routing criteria as needed.
-  ({ url }) => url.origin === self.location.origin && url.pathname.endsWith('.png'), // Customize this strategy as needed, e.g., by changing to CacheFirst.
-  new StaleWhileRevalidate({
-    cacheName: 'images',
-    plugins: [
-      // Ensure that once this runtime cache reaches a maximum size the
-      // least-recently used images are removed.
-      new ExpirationPlugin({ maxEntries: 50 }),
-    ],
-  })
-);
-
-// This allows the web app to trigger skipWaiting via
-// registration.waiting.postMessage({type: 'SKIP_WAITING'})
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+self.addEventListener('install', event =>{
+  const promise1 = caches.open(CACHE_STATIC)
+                  .then(cache =>{
+                    cache.addAll(APP_SHELL)
+                  });
+  const promise2 = caches.open(CACHE_INMUTABLE)
+                  .then(cache =>{
+                    cache.addAll(APP_SHELL_INMUTABLE)
+                  });
+  event.waitUntil(Promise.all([promise1, promise2]));
 });
 
-// Any other custom service worker logic can go here.
+self.addEventListener('activate', event =>{
+  const response = caches.keys()
+                  .then(keys =>{
+                    keys.forEach(key=>{
+                      if(key !== CACHE_STATIC && key.includes('static')){
+                        return caches.delete(key);
+                      }
+                    });
+                  });
+  event.waitUntil(response);
+});
